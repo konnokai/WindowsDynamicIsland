@@ -65,7 +65,7 @@
                     </Grid>
                 </Grid>
 
-                <Grid x:Name="OpenCodePanel" Width="420" Height="72" Visibility="Collapsed">
+                <Grid x:Name="AgentPanel" Width="420" Height="72" Visibility="Collapsed">
                     <Grid RowSpacing="8">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -76,12 +76,13 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="44" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="36" />
+                                <ColumnDefinition Width="40" />
                             </Grid.ColumnDefinitions>
-                            <Grid Width="44" Height="44" VerticalAlignment="Center">
-                                <Border x:Name="OpenCodeIconSurface" Width="44" Height="44" CornerRadius="22" Background="#FF242429">
-                                    <TextBlock Text="{Binding OpenCodeGlyph}" FontFamily="Segoe Fluent Icons" FontSize="20" Foreground="{StaticResource IslandPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel x:Name="VoiceVisualizer" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="3" Visibility="Collapsed">
+                            <Border x:Name="AgentIconSurface" Width="44" Height="44" CornerRadius="22" Background="#FF242429">
+                                <Image Source="ms-appx:///Assets/agent_icon.png" Width="32" Height="32" Stretch="Uniform" AutomationProperties.Name="Agent notification" />
+                            </Border>
+                                <StackPanel Grid.Column="2" x:Name="VoiceVisualizer" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="3" Visibility="Collapsed">
                                     <Border x:Name="VisualizerBar1" Width="3" Height="14" CornerRadius="2" Background="{StaticResource IslandPrimaryBrush}">
                                         <Border.RenderTransform><ScaleTransform x:Name="VisualizerBar1Transform" ScaleY="0.55" /></Border.RenderTransform>
                                     </Border>
@@ -98,11 +99,11 @@
                                         <Border.RenderTransform><ScaleTransform x:Name="VisualizerBar5Transform" ScaleY="0.55" /></Border.RenderTransform>
                                     </Border>
                                 </StackPanel>
-                            </Grid>
-                            <TextBlock Grid.Column="1" Text="{Binding OpenCodeTitle}" Foreground="{StaticResource IslandPrimaryBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding AgentTitle}" Foreground="{StaticResource IslandPrimaryBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <Button Grid.Column="3" HorizontalAlignment="Right" Content="&#xE711;" Click="OnDismissNotificationClick" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Dismiss notification" />
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="{Binding OpenCodeQuestion}" Foreground="{StaticResource IslandSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                        <ItemsControl Grid.Row="2" x:Name="QuestionOptionsList" ItemsSource="{Binding OpenCodeOptions}" Visibility="Collapsed">
+                        <TextBlock Grid.Row="1" Margin="16,0" Text="{Binding AgentQuestion}" Foreground="{StaticResource IslandSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        <ItemsControl Grid.Row="2" x:Name="QuestionOptionsList" ItemsSource="{Binding AgentOptions}" Visibility="Collapsed">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal" Spacing="8" />

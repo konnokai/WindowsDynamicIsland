@@ -15,7 +15,7 @@ public sealed class IslandViewModel : INotifyPropertyChanged
     private bool _isExpanded;
     private MediaSnapshot? _mediaSnapshot;
     private PowerSnapshot? _powerSnapshot;
-    private OpenCodeNotification? _openCodeNotification;
+    private AgentNotification? _openCodeNotification;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -71,21 +71,21 @@ public sealed class IslandViewModel : INotifyPropertyChanged
         }
     }
 
-    public OpenCodeNotification? OpenCodeNotification
+    public AgentNotification? AgentNotification
     {
         get => _openCodeNotification;
         private set
         {
             _openCodeNotification = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(HasOpenCodeNotification));
-            OnPropertyChanged(nameof(OpenCodeTitle));
-            OnPropertyChanged(nameof(OpenCodeMessage));
-            OnPropertyChanged(nameof(OpenCodeGlyph));
-            OnPropertyChanged(nameof(IsOpenCodeVisualizerActive));
-            OnPropertyChanged(nameof(HasOpenCodeQuestion));
-            OnPropertyChanged(nameof(OpenCodeQuestion));
-            OnPropertyChanged(nameof(OpenCodeOptions));
+            OnPropertyChanged(nameof(HasAgentNotification));
+            OnPropertyChanged(nameof(AgentTitle));
+            OnPropertyChanged(nameof(AgentMessage));
+            OnPropertyChanged(nameof(AgentGlyph));
+            OnPropertyChanged(nameof(IsAgentVisualizerActive));
+            OnPropertyChanged(nameof(HasAgentQuestion));
+            OnPropertyChanged(nameof(AgentQuestion));
+            OnPropertyChanged(nameof(AgentOptions));
         }
     }
 
@@ -98,19 +98,19 @@ public sealed class IslandViewModel : INotifyPropertyChanged
     public string PowerText => PowerSnapshot is null
         ? string.Empty
         : $"{PowerSnapshot.ChargePercent}%{(PowerSnapshot.IsPluggedIn ? " · plugged in" : string.Empty)}";
-    public bool HasOpenCodeNotification => OpenCodeNotification is not null;
-    public string OpenCodeTitle => OpenCodeNotification?.Title ?? "OpenCode";
-    public string OpenCodeMessage => OpenCodeNotification?.Message ?? string.Empty;
-    public string OpenCodeGlyph => OpenCodeNotification?.Glyph ?? "\uE768";
-    public bool IsOpenCodeVisualizerActive => OpenCodeNotification?.IsVisualizerActive == true;
-    public bool HasOpenCodeQuestion => OpenCodeNotification?.RequestId is not null && OpenCodeOptions.Count > 0;
-    public string OpenCodeQuestion => OpenCodeNotification?.Question ?? OpenCodeMessage;
-    public IReadOnlyList<string> OpenCodeOptions => OpenCodeNotification?.Options ?? Array.Empty<string>();
+    public bool HasAgentNotification => AgentNotification is not null;
+    public string AgentTitle => AgentNotification?.Title ?? "Agent";
+    public string AgentMessage => AgentNotification?.Message ?? string.Empty;
+    public string AgentGlyph => AgentNotification?.Glyph ?? "\uE768";
+    public bool IsAgentVisualizerActive => AgentNotification?.IsVisualizerActive == true;
+    public bool HasAgentQuestion => AgentNotification is { Source: "OpenCode", RequestId: not null } && AgentOptions.Count > 0;
+    public string AgentQuestion => AgentNotification?.Question ?? AgentMessage;
+    public IReadOnlyList<string> AgentOptions => AgentNotification?.Options ?? Array.Empty<string>();
 
     public ICommand ToggleExpandedCommand { get; }
     public ICommand TogglePlaybackCommand { get; }
 
-    public void UpdateOpenCodeNotification(OpenCodeNotification? notification) => OpenCodeNotification = notification;
+    public void UpdateAgentNotification(AgentNotification? notification) => AgentNotification = notification;
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

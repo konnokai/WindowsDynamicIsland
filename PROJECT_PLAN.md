@@ -13,7 +13,7 @@
 - 首發核心：媒體播放控制。
 - 首發輔助功能：電池與電源提示、基本設定、系統匣常駐；系統音量服務已排除。
 - 長期方向：以類似插件的方式擴充活動與通知來源，可接入 OpenCode、Codex 等狀態通知。
-- 目前已先接入 OpenCode/OpenChamber SSE；插件系統、完整通知彙整與帳號同步仍不實作。
+- 目前已接入 OpenCode/OpenChamber SSE 與 Codex 本機 hooks；插件系統與帳號同步仍不實作。
 
 ## 首版範圍
 
@@ -33,7 +33,7 @@
 
 - 讀取所有應用程式通知。
 - 插件載入、插件沙箱、插件市場或遠端同步。
-- 完整的 OpenCode/Codex 插件協定；目前只保留本機 OpenCode/OpenChamber SSE adapter。
+- 完整的 OpenCode/Codex 插件協定；目前提供 OpenCode/OpenChamber SSE 與 Codex 本機 hooks adapter。
 - 系統音量事件與自製音量提示；依目前決策先排除，不作為首版重點。
 - 全螢幕遊戲覆蓋策略。
 - 多螢幕獨立浮島與複雜工作區同步。
@@ -94,6 +94,7 @@ Windows API -> Service -> ViewModel -> WinUI 3 View
 - [x] 媒體 Snapshot 更新時自動下拉展開；媒體工作階段消失時收回。
 - [x] 接入 OpenCode/OpenChamber 本機 SSE 通知：工作中、完成、錯誤、權限與問題狀態。
 - [x] OpenCode 通知面板具備優先級與自動收回；需要注意的通知保持顯示。
+- [x] 加入 Codex hooks 通知、跨來源注意事項排序，以及共用白色 Agent 圖示；設定與素材授權見 README.md。
 - [x] 修正 OpenChamber SSE 外層 `payload` 包裝格式，確保實際事件能被解析。
 - [x] 支援 `question.asked` 顯示選項，選擇後回傳 `question.replied`。
 - [x] 對齊實際 OpenChamber question 格式：使用 `properties.id` 與巢狀 `answers`。
@@ -135,5 +136,5 @@ Windows API -> Service -> ViewModel -> WinUI 3 View
 ## 後續 session 起始指令
 
 1. 先讀取本文件與工作樹狀態。
-2. 只處理尚未完成的目前階段，不提前實作插件框架或完整 Codex 整合。
+2. 只處理尚未完成的目前階段，不提前實作插件框架；Codex 目前範圍為本機 hooks 提示。
 3. 變更後執行最小相關建置或測試，並更新本文件的「目前進度」。

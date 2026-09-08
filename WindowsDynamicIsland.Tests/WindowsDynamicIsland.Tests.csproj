@@ -8,5 +8,8 @@
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
     <Compile Include="../Services/SystemAudioLevelService.cs" Link="SystemAudioLevelService.cs" />
+    <Compile Include="../Models/AgentNotification.cs" Link="AgentNotification.cs" />
+    <Compile Include="../Services/CodexNotificationService.cs" Link="CodexNotificationService.cs" />
+    <Compile Include="../Services/AgentNotificationQueue.cs" Link="AgentNotificationQueue.cs" />
   </ItemGroup>
 </Project>

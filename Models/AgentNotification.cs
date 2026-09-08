@@ -1,6 +1,6 @@
 namespace WindowsDynamicIsland.Models;
 
-public sealed record OpenCodeNotification(
+public sealed record AgentNotification(
     string Title,
     string Message,
     string SessionId,
@@ -9,4 +9,5 @@ public sealed record OpenCodeNotification(
     bool IsVisualizerActive = false,
     string? RequestId = null,
     string? Question = null,
-    IReadOnlyList<string>? Options = null);
+    IReadOnlyList<string>? Options = null,
+    string Source = "OpenCode");

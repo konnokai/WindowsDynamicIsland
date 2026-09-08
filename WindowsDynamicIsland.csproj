@@ -17,6 +17,10 @@
 
   <ItemGroup>
     <Compile Remove="WindowsDynamicIsland.Tests/**/*.cs" />
+    <!-- WinUI and the SDK both discover PNGs; package this asset exactly once. -->
+    <Content Remove="Assets/agent_icon.png" />
+    <Content Include="Assets/agent_icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="README.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

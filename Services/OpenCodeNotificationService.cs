@@ -13,10 +13,10 @@ public sealed class OpenCodeNotificationService : IDisposable
     private CancellationTokenSource? _stopSource;
     private Task? _runTask;
 
-    public event EventHandler<OpenCodeNotification>? NotificationRaised;
+    public event EventHandler<AgentNotification>? NotificationRaised;
     public event EventHandler<string>? QuestionResolved;
 
-    public async Task ReplyToQuestionAsync(OpenCodeNotification notification, string answer)
+    public async Task ReplyToQuestionAsync(AgentNotification notification, string answer)
     {
         if (string.IsNullOrWhiteSpace(notification.RequestId) || string.IsNullOrWhiteSpace(answer))
         {
@@ -298,7 +298,7 @@ public sealed class OpenCodeNotificationService : IDisposable
         string? requestId = null,
         string? question = null,
         IReadOnlyList<string>? options = null) =>
-        NotificationRaised?.Invoke(this, new OpenCodeNotification(title, message, sessionId, glyph, requiresAttention, isVisualizerActive, requestId, question, options));
+        NotificationRaised?.Invoke(this, new AgentNotification(title, message, sessionId, glyph, requiresAttention, isVisualizerActive, requestId, question, options));
 
     private static string GetString(JsonElement element, string propertyName) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property)

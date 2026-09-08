@@ -4,6 +4,9 @@ using WindowsDynamicIsland.Services;
 
 // Run without arguments for deterministic regressions; --live samples one second
 // of spectrum events from the current default output without saving audio.
+if (args.Contains("--codex"))
+    return await CodexNotificationServiceTests.RunAsync();
+
 if (args.Contains("--live"))
 {
     using var formatProbe = new WasapiLoopbackCapture();

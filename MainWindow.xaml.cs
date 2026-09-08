@@ -21,6 +21,8 @@ public sealed partial class MainWindow : Window
     private readonly PowerService _powerService;
     private readonly TrayIconService _trayIconService;
     private readonly OpenCodeNotificationService _openCodeService;
+    private readonly CodexNotificationService _codexService;
+    private readonly AgentNotificationQueue _notifications = new();
     private readonly SystemAudioLevelService _systemAudioService;
     private readonly nint _windowHandle;
     private readonly DispatcherQueue _dispatcherQueue;
@@ -58,14 +60,16 @@ public sealed partial class MainWindow : Window
         _trayIconService = new TrayIconService(this, _windowHandle);
         _trayIconService.Initialize();
         _openCodeService = new OpenCodeNotificationService();
-        _openCodeService.NotificationRaised += OnOpenCodeNotification;
+        _openCodeService.NotificationRaised += OnAgentNotification;
         _openCodeService.QuestionResolved += OnQuestionResolved;
+        _codexService = new CodexNotificationService();
+        _codexService.NotificationRaised += OnAgentNotification;
         _systemAudioService = new SystemAudioLevelService();
         _systemAudioService.SpectrumChanged += OnSystemAudioSpectrumChanged;
         _openCodeDismissTimer = _dispatcherQueue.CreateTimer();
         _openCodeDismissTimer.IsRepeating = false;
         _openCodeDismissTimer.Interval = TimeSpan.FromSeconds(4);
-        _openCodeDismissTimer.Tick += (_, _) => HideOpenCodeNotification();
+        _openCodeDismissTimer.Tick += (_, _) => HideAgentNotification();
         _visualizerTransforms =
         [
             VisualizerBar1Transform,
@@ -108,6 +112,7 @@ public sealed partial class MainWindow : Window
         await _mediaService.InitializeAsync();
         _systemAudioService.Start();
         _openCodeService.Start();
+        _codexService.Start();
     }
 
     private void ViewModelOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
@@ -124,11 +129,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (args.PropertyName == nameof(IslandViewModel.OpenCodeNotification))
+        if (args.PropertyName == nameof(IslandViewModel.AgentNotification))
         {
-            if (_viewModel.HasOpenCodeNotification)
+            if (_viewModel.HasAgentNotification)
             {
-                ShowOpenCodeNotification();
+                ShowAgentNotification();
             }
 
             return;
@@ -143,61 +148,80 @@ public sealed partial class MainWindow : Window
         {
             CollapsedPanel.Visibility = Visibility.Collapsed;
             ExpandedPanel.Visibility = Visibility.Visible;
-            OpenCodePanel.Visibility = Visibility.Collapsed;
+            AgentPanel.Visibility = Visibility.Collapsed;
             MoveIsland(516, 96, true);
         }
         else
         {
             CollapsedPanel.Visibility = Visibility.Visible;
             ExpandedPanel.Visibility = Visibility.Collapsed;
-            OpenCodePanel.Visibility = Visibility.Collapsed;
+            AgentPanel.Visibility = Visibility.Collapsed;
             MoveIsland(244, 80, false);
         }
     }
 
-    private void OnOpenCodeNotification(object? sender, OpenCodeNotification notification)
+    private void OnAgentNotification(object? sender, AgentNotification notification)
     {
-        _dispatcherQueue.TryEnqueue(() => _viewModel.UpdateOpenCodeNotification(notification));
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            _notifications.Update(notification);
+            RefreshAgentNotification();
+        });
     }
 
     private void OnQuestionResolved(object? sender, string requestId)
     {
         _dispatcherQueue.TryEnqueue(() =>
         {
-            if (_viewModel.OpenCodeNotification?.RequestId == requestId)
-            {
-                HideOpenCodeNotification();
-            }
+            _notifications.ResolveQuestion("OpenCode", requestId);
+            RefreshAgentNotification();
         });
     }
 
-    private void ShowOpenCodeNotification()
+    private void RefreshAgentNotification()
+    {
+        // Repeated working hooks must not reset the current panel's dismiss timer.
+        if (_viewModel.AgentNotification == _notifications.Current) return;
+        if (_notifications.Current is { } current)
+            _viewModel.UpdateAgentNotification(current);
+        else
+            HideAgentNotification();
+    }
+
+    private void ShowAgentNotification()
     {
         _openCodeDismissTimer.Stop();
         _openCodeNotificationVisible = true;
-        var isQuestion = _viewModel.HasOpenCodeQuestion;
+        var isQuestion = _viewModel.HasAgentQuestion;
         CollapsedPanel.Visibility = Visibility.Collapsed;
         ExpandedPanel.Visibility = Visibility.Collapsed;
-        OpenCodePanel.Visibility = Visibility.Visible;
+        AgentPanel.Visibility = Visibility.Visible;
         QuestionOptionsList.Visibility = isQuestion ? Visibility.Visible : Visibility.Collapsed;
-        OpenCodePanel.Width = isQuestion ? 460 : 420;
-        OpenCodePanel.Height = isQuestion ? 144 : 72;
+        AgentPanel.Width = isQuestion ? 460 : 420;
+        AgentPanel.Height = isQuestion ? 144 : 72;
         UpdateVisualizer();
         MoveIsland(isQuestion ? 476 : 436, isQuestion ? 160 : 88, true);
 
-        if (_viewModel.OpenCodeNotification?.RequiresAttention != true)
+        if (_viewModel.AgentNotification?.RequiresAttention != true)
         {
             _openCodeDismissTimer.Start();
         }
     }
 
-    private void HideOpenCodeNotification()
+    private void HideAgentNotification()
     {
+        if (_viewModel.AgentNotification is { } notification)
+            _notifications.Dismiss(notification);
+        if (_notifications.Current is { } next)
+        {
+            _viewModel.UpdateAgentNotification(next);
+            return;
+        }
         _openCodeDismissTimer.Stop();
         VoiceVisualizer.Visibility = Visibility.Collapsed;
-        OpenCodeIconSurface.Visibility = Visibility.Visible;
+        AgentIconSurface.Visibility = Visibility.Visible;
         _openCodeNotificationVisible = false;
-        _viewModel.UpdateOpenCodeNotification(null);
+        _viewModel.UpdateAgentNotification(null);
 
         if (_viewModel.HasMedia)
         {
@@ -206,7 +230,7 @@ public sealed partial class MainWindow : Window
             {
                 CollapsedPanel.Visibility = Visibility.Collapsed;
                 ExpandedPanel.Visibility = Visibility.Visible;
-                OpenCodePanel.Visibility = Visibility.Collapsed;
+                AgentPanel.Visibility = Visibility.Collapsed;
                 MoveIsland(516, 96, true);
             }
         }
@@ -215,16 +239,18 @@ public sealed partial class MainWindow : Window
             _viewModel.IsExpanded = false;
             CollapsedPanel.Visibility = Visibility.Visible;
             ExpandedPanel.Visibility = Visibility.Collapsed;
-            OpenCodePanel.Visibility = Visibility.Collapsed;
+            AgentPanel.Visibility = Visibility.Collapsed;
             MoveIsland(244, 80, false);
         }
         UpdateVisualizer();
     }
 
+    private void OnDismissNotificationClick(object sender, RoutedEventArgs args) => HideAgentNotification();
+
     private async void OnQuestionOptionClick(object sender, RoutedEventArgs args)
     {
         if (sender is not Button button || button.Content is not string answer ||
-            _viewModel.OpenCodeNotification is not { RequestId: not null } notification)
+            _viewModel.AgentNotification is not { Source: "OpenCode", RequestId: not null } notification)
         {
             return;
         }
@@ -232,7 +258,8 @@ public sealed partial class MainWindow : Window
         try
         {
             await _openCodeService.ReplyToQuestionAsync(notification, answer);
-            HideOpenCodeNotification();
+            _notifications.ResolveQuestion("OpenCode", notification.RequestId);
+            RefreshAgentNotification();
         }
         catch (HttpRequestException)
         {
@@ -333,9 +360,9 @@ public sealed partial class MainWindow : Window
 
     private void UpdateVisualizer()
     {
-        var active = _viewModel.IsOpenCodeVisualizerActive;
+        var active = _viewModel.IsAgentVisualizerActive;
         VoiceVisualizer.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
-        OpenCodeIconSurface.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+        AgentIconSurface.Visibility = Visibility.Visible;
         var mediaActive = _viewModel.HasMedia && !_openCodeNotificationVisible;
         MediaVisualizer.Visibility = mediaActive ? Visibility.Visible : Visibility.Collapsed;
         CollapsedMediaVisualizer.Visibility = mediaActive ? Visibility.Visible : Visibility.Collapsed;
@@ -357,9 +384,11 @@ public sealed partial class MainWindow : Window
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
-        _openCodeService.NotificationRaised -= OnOpenCodeNotification;
+        _openCodeService.NotificationRaised -= OnAgentNotification;
         _openCodeService.QuestionResolved -= OnQuestionResolved;
         _openCodeService.Dispose();
+        _codexService.NotificationRaised -= OnAgentNotification;
+        _codexService.Dispose();
         _openCodeDismissTimer.Stop();
         _islandAnimationTimer.Stop();
         _visualizerTimer.Stop();
