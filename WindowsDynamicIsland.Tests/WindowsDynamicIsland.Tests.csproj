@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Models/MediaProgress.cs" Link="MediaProgress.cs" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <Compile Include="../Services/SystemAudioLevelService.cs" Link="SystemAudioLevelService.cs" />
     <Compile Include="../Models/AgentNotification.cs" Link="AgentNotification.cs" />

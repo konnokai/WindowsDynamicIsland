@@ -95,6 +95,8 @@ Windows API -> Service -> ViewModel -> WinUI 3 View
 - [x] 接入 OpenCode/OpenChamber 本機 SSE 通知：工作中、完成、錯誤、權限與問題狀態。
 - [x] OpenCode 通知面板具備優先級與自動收回；需要注意的通知保持顯示。
 - [x] 加入 Codex hooks 通知、跨來源注意事項排序，以及共用白色 Agent 圖示；設定與素材授權見 README.md。
+- [x] Agent 通知高度依內容量測並包含外層 padding，避免第二行文字與字母下緣遭固定高度裁切。
+- [x] Agent 通知移除右側音訊柱，音訊視覺效果僅保留於媒體面板。
 - [x] 修正 OpenChamber SSE 外層 `payload` 包裝格式，確保實際事件能被解析。
 - [x] 支援 `question.asked` 顯示選項，選擇後回傳 `question.replied`。
 - [x] 對齊實際 OpenChamber question 格式：使用 `properties.id` 與巢狀 `answers`。

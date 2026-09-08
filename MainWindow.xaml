@@ -20,6 +20,7 @@
                     <Grid ColumnSpacing="10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="36" />
+                            <ColumnDefinition Width="36" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="36" />
                         </Grid.ColumnDefinitions>
@@ -30,17 +31,26 @@
                             <Border Width="2" Height="24" CornerRadius="1" Background="{StaticResource IslandPrimaryBrush}" RenderTransformOrigin="0.5,0.5"><Border.RenderTransform><ScaleTransform x:Name="CollapsedVisualizerBar4Transform" ScaleY="0.03" /></Border.RenderTransform></Border>
                             <Border Width="2" Height="24" CornerRadius="1" Background="{StaticResource IslandPrimaryBrush}" RenderTransformOrigin="0.5,0.5"><Border.RenderTransform><ScaleTransform x:Name="CollapsedVisualizerBar5Transform" ScaleY="0.03" /></Border.RenderTransform></Border>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <Grid Grid.Column="1" Width="36" Height="36" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8D6;" Foreground="{StaticResource IslandSecondaryBrush}" Visibility="{Binding MediaCoverPlaceholderVisibility}" />
+                            <Border Width="36" Height="36">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding MediaCover}" Stretch="UniformToFill" AlignmentX="Center" AlignmentY="Center" />
+                                </Border.Background>
+                            </Border>
+                        </Grid>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
                             <TextBlock Text="{Binding MediaTitle}" Foreground="{StaticResource IslandPrimaryBrush}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding MediaSource}" Foreground="{StaticResource IslandSecondaryBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
-                        <Button Grid.Column="2" Command="{Binding ToggleExpandedCommand}" Content="&#xE70D;" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Expand island" />
+                        <Button Grid.Column="3" Command="{Binding ToggleExpandedCommand}" Content="&#xE70D;" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Expand island" />
                     </Grid>
                 </Grid>
 
                 <Grid x:Name="ExpandedPanel" Width="500" Height="80" Visibility="Collapsed">
-                    <Grid ColumnSpacing="14">
+                    <Grid ColumnSpacing="14" Margin="0,0,14,0">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="44" />
                             <ColumnDefinition Width="44" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="40" />
@@ -55,52 +65,46 @@
                                 <Border Width="3" Height="34" CornerRadius="2" Background="{StaticResource IslandPrimaryBrush}" RenderTransformOrigin="0.5,0.5"><Border.RenderTransform><ScaleTransform x:Name="MediaVisualizerBar5Transform" ScaleY="0.03" /></Border.RenderTransform></Border>
                             </StackPanel>
                         </Grid>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <Grid Grid.Column="1" Width="44" Height="44" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8D6;" Foreground="{StaticResource IslandSecondaryBrush}" Visibility="{Binding MediaCoverPlaceholderVisibility}" />
+                            <Border Width="44" Height="44">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding MediaCover}" Stretch="UniformToFill" AlignmentX="Center" AlignmentY="Center" />
+                                </Border.Background>
+                            </Border>
+                        </Grid>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
                             <TextBlock Text="{Binding MediaTitle}" Foreground="{StaticResource IslandPrimaryBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding MediaArtist}" Foreground="{StaticResource IslandSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Visibility="{Binding MediaProgressVisibility}" Spacing="2" Margin="0,2,0,0">
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding MediaProgressPercent}" Height="2" Foreground="{StaticResource IslandSecondaryBrush}" Background="{StaticResource IslandMutedBrush}" AutomationProperties.Name="Playback progress" />
+                                <TextBlock Text="{Binding MediaProgressText}" Foreground="{StaticResource IslandSecondaryBrush}" FontSize="10" />
+                            </StackPanel>
                             <TextBlock Text="{Binding PowerText}" Foreground="{StaticResource IslandMutedBrush}" FontSize="10" />
                         </StackPanel>
-                        <Button Grid.Column="2" Command="{Binding TogglePlaybackCommand}" Content="{Binding PlaybackGlyph}" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Play or pause media" />
-                        <Button Grid.Column="3" Command="{Binding ToggleExpandedCommand}" Content="&#xE70D;" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Collapse island" />
+                        <Button Grid.Column="3" Command="{Binding TogglePlaybackCommand}" Content="{Binding PlaybackGlyph}" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Play or pause media" />
+                        <Button Grid.Column="4" Command="{Binding ToggleExpandedCommand}" Content="&#xE70D;" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Collapse island" />
                     </Grid>
                 </Grid>
 
-                <Grid x:Name="AgentPanel" Width="420" Height="72" Visibility="Collapsed">
+                <Grid x:Name="AgentPanel" Width="420" MinHeight="72" VerticalAlignment="Top" Visibility="Collapsed">
                     <Grid RowSpacing="8">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Grid ColumnSpacing="12">
+                        <Grid ColumnSpacing="12" Margin="0,0,14,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="44" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="36" />
                                 <ColumnDefinition Width="40" />
                             </Grid.ColumnDefinitions>
                             <Border x:Name="AgentIconSurface" Width="44" Height="44" CornerRadius="22" Background="#FF242429">
                                 <Image Source="ms-appx:///Assets/agent_icon.png" Width="32" Height="32" Stretch="Uniform" AutomationProperties.Name="Agent notification" />
                             </Border>
-                                <StackPanel Grid.Column="2" x:Name="VoiceVisualizer" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="3" Visibility="Collapsed">
-                                    <Border x:Name="VisualizerBar1" Width="3" Height="14" CornerRadius="2" Background="{StaticResource IslandPrimaryBrush}">
-                                        <Border.RenderTransform><ScaleTransform x:Name="VisualizerBar1Transform" ScaleY="0.55" /></Border.RenderTransform>
-                                    </Border>
-                                    <Border x:Name="VisualizerBar2" Width="3" Height="22" CornerRadius="2" Background="{StaticResource IslandPrimaryBrush}">
-                                        <Border.RenderTransform><ScaleTransform x:Name="VisualizerBar2Transform" ScaleY="0.55" /></Border.RenderTransform>
-                                    </Border>
-                                    <Border x:Name="VisualizerBar3" Width="3" Height="30" CornerRadius="2" Background="{StaticResource IslandPrimaryBrush}">
-                                        <Border.RenderTransform><ScaleTransform x:Name="VisualizerBar3Transform" ScaleY="0.55" /></Border.RenderTransform>
-                                    </Border>
-                                    <Border x:Name="VisualizerBar4" Width="3" Height="22" CornerRadius="2" Background="{StaticResource IslandPrimaryBrush}">
-                                        <Border.RenderTransform><ScaleTransform x:Name="VisualizerBar4Transform" ScaleY="0.55" /></Border.RenderTransform>
-                                    </Border>
-                                    <Border x:Name="VisualizerBar5" Width="3" Height="14" CornerRadius="2" Background="{StaticResource IslandPrimaryBrush}">
-                                        <Border.RenderTransform><ScaleTransform x:Name="VisualizerBar5Transform" ScaleY="0.55" /></Border.RenderTransform>
-                                    </Border>
-                                </StackPanel>
                             <TextBlock Grid.Column="1" Text="{Binding AgentTitle}" Foreground="{StaticResource IslandPrimaryBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                            <Button Grid.Column="3" HorizontalAlignment="Right" Content="&#xE711;" Click="OnDismissNotificationClick" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Dismiss notification" />
+                            <Button Grid.Column="2" HorizontalAlignment="Right" Content="&#xE711;" Click="OnDismissNotificationClick" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Dismiss notification" />
                         </Grid>
                         <TextBlock Grid.Row="1" Margin="16,0" Text="{Binding AgentQuestion}" Foreground="{StaticResource IslandSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
                         <ItemsControl Grid.Row="2" x:Name="QuestionOptionsList" ItemsSource="{Binding AgentOptions}" Visibility="Collapsed">

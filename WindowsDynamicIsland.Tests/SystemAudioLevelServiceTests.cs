@@ -7,6 +7,9 @@ using WindowsDynamicIsland.Services;
 if (args.Contains("--codex"))
     return await CodexNotificationServiceTests.RunAsync();
 
+if (args.Contains("--media"))
+    return MediaProgressTests.Run();
+
 if (args.Contains("--live"))
 {
     using var formatProbe = new WasapiLoopbackCapture();

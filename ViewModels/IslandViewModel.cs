@@ -2,18 +2,24 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media.Imaging;
 using WindowsDynamicIsland.Models;
 using WindowsDynamicIsland.Services;
 
 namespace WindowsDynamicIsland.ViewModels;
 
 /// <summary>Combines system activity into the small state surface shown by the island.</summary>
-public sealed class IslandViewModel : INotifyPropertyChanged
+public sealed class IslandViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly MediaSessionService _media;
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly DispatcherQueueTimer _progressTimer;
+    private readonly PowerService _power;
+    private MediaProgress? _mediaProgress;
     private bool _isExpanded;
     private MediaSnapshot? _mediaSnapshot;
+    private BitmapImage? _mediaCover;
     private PowerSnapshot? _powerSnapshot;
     private AgentNotification? _openCodeNotification;
 
@@ -23,6 +29,11 @@ public sealed class IslandViewModel : INotifyPropertyChanged
     {
         _media = media;
         _dispatcherQueue = dispatcherQueue;
+        _power = power;
+        _progressTimer = dispatcherQueue.CreateTimer();
+        // The displayed time has second precision; artwork is not refreshed on this timer.
+        _progressTimer.Interval = TimeSpan.FromSeconds(1);
+        _progressTimer.Tick += OnProgressTick;
         media.SnapshotChanged += OnMediaSnapshotChanged;
         power.SnapshotChanged += OnPowerSnapshotChanged;
         ToggleExpandedCommand = new RelayCommand(() => IsExpanded = !IsExpanded);
@@ -82,7 +93,6 @@ public sealed class IslandViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(AgentTitle));
             OnPropertyChanged(nameof(AgentMessage));
             OnPropertyChanged(nameof(AgentGlyph));
-            OnPropertyChanged(nameof(IsAgentVisualizerActive));
             OnPropertyChanged(nameof(HasAgentQuestion));
             OnPropertyChanged(nameof(AgentQuestion));
             OnPropertyChanged(nameof(AgentOptions));
@@ -90,6 +100,38 @@ public sealed class IslandViewModel : INotifyPropertyChanged
     }
 
     public bool HasMedia => MediaSnapshot is not null;
+    public string MediaProgressText => _mediaProgress?.Text ?? string.Empty;
+    public double MediaProgressPercent => _mediaProgress?.Percent ?? 0;
+    public Visibility MediaProgressVisibility => _mediaProgress is null ? Visibility.Collapsed : Visibility.Visible;
+
+    private void OnProgressTick(DispatcherQueueTimer sender, object args) => UpdateProgress();
+
+    private void UpdateProgress()
+    {
+        _mediaProgress = HasMedia ? _media.GetProgress() : null;
+        OnPropertyChanged(nameof(MediaProgressText));
+        OnPropertyChanged(nameof(MediaProgressPercent));
+        OnPropertyChanged(nameof(MediaProgressVisibility));
+    }
+
+    public void Dispose()
+    {
+        _progressTimer.Stop();
+        _progressTimer.Tick -= OnProgressTick;
+        _media.SnapshotChanged -= OnMediaSnapshotChanged;
+        _power.SnapshotChanged -= OnPowerSnapshotChanged;
+    }
+    public BitmapImage? MediaCover
+    {
+        get => _mediaCover;
+        private set
+        {
+            _mediaCover = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(MediaCoverPlaceholderVisibility));
+        }
+    }
+    public Visibility MediaCoverPlaceholderVisibility => MediaCover is null ? Visibility.Visible : Visibility.Collapsed;
     public bool HasPower => PowerSnapshot is not null;
     public string MediaTitle => MediaSnapshot?.Title ?? "No media session";
     public string MediaArtist => MediaSnapshot?.Artist ?? "Open a supported player to begin";
@@ -102,7 +144,6 @@ public sealed class IslandViewModel : INotifyPropertyChanged
     public string AgentTitle => AgentNotification?.Title ?? "Agent";
     public string AgentMessage => AgentNotification?.Message ?? string.Empty;
     public string AgentGlyph => AgentNotification?.Glyph ?? "\uE768";
-    public bool IsAgentVisualizerActive => AgentNotification?.IsVisualizerActive == true;
     public bool HasAgentQuestion => AgentNotification is { Source: "OpenCode", RequestId: not null } && AgentOptions.Count > 0;
     public string AgentQuestion => AgentNotification?.Question ?? AgentMessage;
     public IReadOnlyList<string> AgentOptions => AgentNotification?.Options ?? Array.Empty<string>();
@@ -117,7 +158,39 @@ public sealed class IslandViewModel : INotifyPropertyChanged
 
     // GSMTC and power callbacks are not guaranteed to run on the XAML thread.
     private void OnMediaSnapshotChanged(object? sender, MediaSnapshot? snapshot) =>
-        _dispatcherQueue.TryEnqueue(() => MediaSnapshot = snapshot);
+        _dispatcherQueue.TryEnqueue(async () =>
+        {
+            MediaSnapshot = snapshot;
+            UpdateProgress();
+            if (HasMedia) _progressTimer.Start();
+            else _progressTimer.Stop();
+            await LoadMediaCoverAsync(snapshot);
+        });
+
+    /// <summary>Decodes cover art on the UI thread and discards results from a superseded snapshot.</summary>
+    private async Task LoadMediaCoverAsync(MediaSnapshot? snapshot)
+    {
+        MediaCover = null;
+        if (snapshot?.Thumbnail is not { } thumbnail)
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = await thumbnail.OpenReadAsync();
+            var image = new BitmapImage();
+            await image.SetSourceAsync(stream);
+            if (ReferenceEquals(MediaSnapshot, snapshot))
+            {
+                MediaCover = image;
+            }
+        }
+        catch (Exception)
+        {
+            // Missing or invalid provider artwork keeps the music placeholder visible.
+        }
+    }
 
     private void OnPowerSnapshotChanged(object? sender, PowerSnapshot? snapshot) =>
         _dispatcherQueue.TryEnqueue(() => PowerSnapshot = snapshot);

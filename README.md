@@ -23,7 +23,7 @@ powershell.exe -NoProfile -File .\Integrations\Codex\Install-IslandHooks.ps1
 
 依 Codex 提示檢閱並信任新增的 hooks，再開始新的回合。需要支援 [Codex hooks](https://learn.chatgpt.com/docs/hooks) 的本機版本；遠端與雲端工作不會傳送到這台電腦。
 
-- 開始處理與工具執行時，顯示工作中提示及音訊視覺效果。
+- 開始處理與工具執行時，顯示白色 Agent 圖示及工作中提示。
 - 權限請求與問題工具呼叫時，顯示需要回應的提示。請回到 Codex 核准或回答。
 - `Stop` 顯示「回覆已就緒」，不代表程式、測試或整個工作已成功；其他 hooks 仍可能要求繼續工作。
 - 中斷或工作階段結束時，顯示對應提示。

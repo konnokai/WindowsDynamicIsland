@@ -1,7 +1,10 @@
+using Windows.Storage.Streams;
+
 namespace WindowsDynamicIsland.Models;
 
 public sealed record MediaSnapshot(
     string Title,
     string Artist,
     string Source,
-    bool IsPlaying);
+    bool IsPlaying,
+    IRandomAccessStreamReference? Thumbnail = null);

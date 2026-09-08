@@ -49,7 +49,7 @@ public sealed partial class MainWindow : Window
         _islandAnimationTimer.Interval = TimeSpan.FromMilliseconds(16);
         _islandAnimationTimer.Tick += OnIslandAnimationTick;
         _visualizerTimer = _dispatcherQueue.CreateTimer();
-        _visualizerTimer.Interval = TimeSpan.FromMilliseconds(33);
+        _visualizerTimer.Interval = TimeSpan.FromMilliseconds(16);
         _visualizerTimer.Tick += OnVisualizerTick;
         var windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
@@ -72,11 +72,6 @@ public sealed partial class MainWindow : Window
         _openCodeDismissTimer.Tick += (_, _) => HideAgentNotification();
         _visualizerTransforms =
         [
-            VisualizerBar1Transform,
-            VisualizerBar2Transform,
-            VisualizerBar3Transform,
-            VisualizerBar4Transform,
-            VisualizerBar5Transform,
             MediaVisualizerBar1Transform,
             MediaVisualizerBar2Transform,
             MediaVisualizerBar3Transform,
@@ -198,14 +193,27 @@ public sealed partial class MainWindow : Window
         AgentPanel.Visibility = Visibility.Visible;
         QuestionOptionsList.Visibility = isQuestion ? Visibility.Visible : Visibility.Collapsed;
         AgentPanel.Width = isQuestion ? 460 : 420;
-        AgentPanel.Height = isQuestion ? 144 : 72;
+        AgentPanel.MinHeight = isQuestion ? 144 : 72;
         UpdateVisualizer();
-        MoveIsland(isQuestion ? 476 : 436, isQuestion ? 160 : 88, true);
+        ResizeToAgentNotification();
 
         if (_viewModel.AgentNotification?.RequiresAttention != true)
         {
             _openCodeDismissTimer.Start();
         }
+    }
+
+    /// <summary>Measures unconstrained content so text descenders and row gaps fit inside the native window.</summary>
+    private void ResizeToAgentNotification()
+    {
+        // Include the surface padding in the HWND size; fixed panel heights can clip
+        // the second line when font metrics or Windows text scaling increase its height.
+        AgentPanel.Measure(new Windows.Foundation.Size(AgentPanel.Width, double.PositiveInfinity));
+        var padding = IslandSurface.Padding;
+        MoveIsland(
+            (int)Math.Ceiling(AgentPanel.DesiredSize.Width + padding.Left + padding.Right),
+            (int)Math.Ceiling(AgentPanel.DesiredSize.Height + padding.Top + padding.Bottom),
+            true);
     }
 
     private void HideAgentNotification()
@@ -218,7 +226,6 @@ public sealed partial class MainWindow : Window
             return;
         }
         _openCodeDismissTimer.Stop();
-        VoiceVisualizer.Visibility = Visibility.Collapsed;
         AgentIconSurface.Visibility = Visibility.Visible;
         _openCodeNotificationVisible = false;
         _viewModel.UpdateAgentNotification(null);
@@ -360,13 +367,11 @@ public sealed partial class MainWindow : Window
 
     private void UpdateVisualizer()
     {
-        var active = _viewModel.IsAgentVisualizerActive;
-        VoiceVisualizer.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         AgentIconSurface.Visibility = Visibility.Visible;
         var mediaActive = _viewModel.HasMedia && !_openCodeNotificationVisible;
         MediaVisualizer.Visibility = mediaActive ? Visibility.Visible : Visibility.Collapsed;
         CollapsedMediaVisualizer.Visibility = mediaActive ? Visibility.Visible : Visibility.Collapsed;
-        if (active || mediaActive)
+        if (mediaActive)
             _visualizerTimer.Start();
         else
             _visualizerTimer.Stop();
@@ -384,6 +389,7 @@ public sealed partial class MainWindow : Window
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
+        _viewModel.Dispose();
         _openCodeService.NotificationRaised -= OnAgentNotification;
         _openCodeService.QuestionResolved -= OnQuestionResolved;
         _openCodeService.Dispose();
