@@ -5,7 +5,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <Grid x:Name="IslandRoot" Background="Transparent" Loaded="OnWindowLoaded">
+    <Grid x:Name="IslandRoot" Background="Transparent" Loaded="OnWindowLoaded"
+          PointerEntered="OnIslandPointerEntered" PointerExited="OnIslandPointerExited">
         <Border
             x:Name="IslandSurface"
             Background="{StaticResource IslandBackgroundBrush}"
@@ -16,12 +17,10 @@
                 <ScaleTransform x:Name="IslandScaleTransform" ScaleX="1" ScaleY="1" />
             </Border.RenderTransform>
             <Grid>
-                <Grid x:Name="CollapsedPanel" Width="228" Height="64">
+                <Grid x:Name="CollapsedPanel" Width="82" Height="36">
                     <Grid ColumnSpacing="10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="36" />
-                            <ColumnDefinition Width="36" />
-                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="36" />
                         </Grid.ColumnDefinitions>
                         <StackPanel x:Name="CollapsedMediaVisualizer" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
@@ -39,11 +38,6 @@
                                 </Border.Background>
                             </Border>
                         </Grid>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding MediaTitle}" Foreground="{StaticResource IslandPrimaryBrush}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding MediaSource}" Foreground="{StaticResource IslandSecondaryBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                        <Button Grid.Column="3" Command="{Binding ToggleExpandedCommand}" Content="&#xE70D;" Style="{StaticResource IslandIconButtonStyle}" AutomationProperties.Name="Expand island" />
                     </Grid>
                 </Grid>
 

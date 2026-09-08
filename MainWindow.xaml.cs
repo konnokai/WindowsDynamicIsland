@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Graphics;
@@ -37,6 +38,10 @@ public sealed partial class MainWindow : Window
     private DateTimeOffset _animationStartedAt;
     private float[] _systemAudioBands = new float[5];
     private bool _openCodeNotificationVisible;
+    private readonly DispatcherQueueTimer _mediaCollapseTimer;
+    private readonly DispatcherQueueTimer _mediaHoverTimer;
+    private bool _pointerInside;
+    private MediaSnapshot? _lastMediaSnapshot;
 
     public MainWindow()
     {
@@ -45,6 +50,14 @@ public sealed partial class MainWindow : Window
 
         _windowHandle = WindowNative.GetWindowHandle(this);
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        _mediaCollapseTimer = _dispatcherQueue.CreateTimer();
+        _mediaCollapseTimer.IsRepeating = false;
+        _mediaCollapseTimer.Interval = TimeSpan.FromSeconds(4);
+        _mediaCollapseTimer.Tick += OnMediaCollapseTick;
+        _mediaHoverTimer = _dispatcherQueue.CreateTimer();
+        _mediaHoverTimer.IsRepeating = false;
+        _mediaHoverTimer.Interval = TimeSpan.FromSeconds(1);
+        _mediaHoverTimer.Tick += OnMediaHoverTick;
         _islandAnimationTimer = _dispatcherQueue.CreateTimer();
         _islandAnimationTimer.Interval = TimeSpan.FromMilliseconds(16);
         _islandAnimationTimer.Tick += OnIslandAnimationTick;
@@ -114,12 +127,28 @@ public sealed partial class MainWindow : Window
     {
         if (args.PropertyName == nameof(IslandViewModel.MediaSnapshot))
         {
+            var snapshot = _viewModel.MediaSnapshot;
+            var trackChanged = snapshot is not null &&
+                (_lastMediaSnapshot is null || snapshot.Title != _lastMediaSnapshot.Title ||
+                 snapshot.Artist != _lastMediaSnapshot.Artist || snapshot.Source != _lastMediaSnapshot.Source);
+            _lastMediaSnapshot = snapshot;
             if (_openCodeNotificationVisible)
             {
                 return;
             }
 
-            _viewModel.IsExpanded = _viewModel.HasMedia;
+            if (trackChanged)
+            {
+                _viewModel.IsExpanded = true;
+                RestartMediaCollapseTimer();
+            }
+            else if (snapshot is null)
+            {
+                _mediaCollapseTimer.Stop();
+                _mediaHoverTimer.Stop();
+                _viewModel.IsExpanded = false;
+            }
+            if (trackChanged || snapshot is null) ApplyMediaLayout();
             UpdateVisualizer();
             return;
         }
@@ -139,6 +168,15 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (_openCodeNotificationVisible) return;
+        ApplyMediaLayout();
+        if (_viewModel.IsExpanded) RestartMediaCollapseTimer();
+        else _mediaCollapseTimer.Stop();
+    }
+
+    /// <summary>Keeps the compact media window visible and sizes its native hit area to its content.</summary>
+    private void ApplyMediaLayout()
+    {
         if (_viewModel.IsExpanded)
         {
             CollapsedPanel.Visibility = Visibility.Collapsed;
@@ -151,8 +189,45 @@ public sealed partial class MainWindow : Window
             CollapsedPanel.Visibility = Visibility.Visible;
             ExpandedPanel.Visibility = Visibility.Collapsed;
             AgentPanel.Visibility = Visibility.Collapsed;
-            MoveIsland(244, 80, false);
+            var padding = IslandSurface.Padding;
+            MoveIsland((int)(CollapsedPanel.Width + padding.Left + padding.Right),
+                (int)(CollapsedPanel.Height + padding.Top + padding.Bottom), _viewModel.HasMedia);
         }
+    }
+
+    /// <summary>Hover owns the expanded panel until exit; media refreshes cannot extend the idle deadline.</summary>
+    private void RestartMediaCollapseTimer()
+    {
+        _mediaCollapseTimer.Stop();
+        if (!_pointerInside && !_openCodeNotificationVisible && _viewModel.HasMedia)
+            _mediaCollapseTimer.Start();
+    }
+
+    private void OnIslandPointerEntered(object sender, PointerRoutedEventArgs args)
+    {
+        _pointerInside = true;
+        _mediaCollapseTimer.Stop();
+        if (!_openCodeNotificationVisible && _viewModel.HasMedia && !_viewModel.IsExpanded)
+            _mediaHoverTimer.Start();
+    }
+
+    private void OnMediaCollapseTick(DispatcherQueueTimer sender, object args)
+    {
+        if (!_openCodeNotificationVisible && !_pointerInside)
+            _viewModel.IsExpanded = false;
+    }
+
+    private void OnMediaHoverTick(DispatcherQueueTimer sender, object args)
+    {
+        if (_pointerInside && !_openCodeNotificationVisible && _viewModel.HasMedia)
+            _viewModel.IsExpanded = true;
+    }
+
+    private void OnIslandPointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        _pointerInside = false;
+        _mediaHoverTimer.Stop();
+        if (_viewModel.IsExpanded) RestartMediaCollapseTimer();
     }
 
     private void OnAgentNotification(object? sender, AgentNotification notification)
@@ -185,6 +260,8 @@ public sealed partial class MainWindow : Window
 
     private void ShowAgentNotification()
     {
+        _mediaCollapseTimer.Stop();
+        _mediaHoverTimer.Stop();
         _openCodeDismissTimer.Stop();
         _openCodeNotificationVisible = true;
         var isQuestion = _viewModel.HasAgentQuestion;
@@ -230,25 +307,9 @@ public sealed partial class MainWindow : Window
         _openCodeNotificationVisible = false;
         _viewModel.UpdateAgentNotification(null);
 
-        if (_viewModel.HasMedia)
-        {
-            _viewModel.IsExpanded = true;
-            if (_viewModel.IsExpanded)
-            {
-                CollapsedPanel.Visibility = Visibility.Collapsed;
-                ExpandedPanel.Visibility = Visibility.Visible;
-                AgentPanel.Visibility = Visibility.Collapsed;
-                MoveIsland(516, 96, true);
-            }
-        }
-        else
-        {
-            _viewModel.IsExpanded = false;
-            CollapsedPanel.Visibility = Visibility.Visible;
-            ExpandedPanel.Visibility = Visibility.Collapsed;
-            AgentPanel.Visibility = Visibility.Collapsed;
-            MoveIsland(244, 80, false);
-        }
+        _viewModel.IsExpanded = _viewModel.HasMedia;
+        ApplyMediaLayout();
+        RestartMediaCollapseTimer();
         UpdateVisualizer();
     }
 
@@ -398,6 +459,8 @@ public sealed partial class MainWindow : Window
         _openCodeDismissTimer.Stop();
         _islandAnimationTimer.Stop();
         _visualizerTimer.Stop();
+        _mediaCollapseTimer.Stop();
+        _mediaHoverTimer.Stop();
         _systemAudioService.SpectrumChanged -= OnSystemAudioSpectrumChanged;
         _systemAudioService.Dispose();
         _trayIconService.Dispose();
