@@ -1,10 +1,12 @@
 using NAudio.Dsp;
 using NAudio.Wave;
+using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 
 namespace WindowsDynamicIsland.Services;
 
 /// <summary>Reads the default system render mix through WASAPI loopback and exposes five frequency-band levels.</summary>
-public sealed class SystemAudioLevelService : IDisposable
+public sealed class SystemAudioLevelService : IDisposable, IMMNotificationClient
 {
     private const int FftLength = 1024;
     private const int FftOrder = 10;
@@ -21,37 +23,112 @@ public sealed class SystemAudioLevelService : IDisposable
         (2000, 6000)
     ];
 
-    private WasapiLoopbackCapture? _capture;
+    private IWaveIn? _capture;
+    private readonly object _lifecycleLock = new();
+    private readonly Func<IWaveIn> _createCapture;
+    private readonly bool _monitorDevices;
+    private MMDeviceEnumerator? _deviceEnumerator;
+    private bool _started;
+    private bool _disposed;
     private readonly float[] _sampleBuffer = new float[FftLength];
     private readonly Complex[] _fftBuffer = new Complex[FftLength];
     private int _sampleCount;
 
     public event EventHandler<float[]>? SpectrumChanged;
 
+    public SystemAudioLevelService() : this(() => new WasapiLoopbackCapture(), true) { }
+
+    internal SystemAudioLevelService(Func<IWaveIn> createCapture, bool monitorDevices = false)
+    {
+        _createCapture = createCapture;
+        _monitorDevices = monitorDevices;
+    }
+
     public void Start()
     {
-        if (_capture is not null)
+        lock (_lifecycleLock)
         {
-            return;
+            if (_disposed || _started) return;
+            _started = true;
+            if (_monitorDevices)
+            {
+                _deviceEnumerator = new MMDeviceEnumerator();
+                _deviceEnumerator.RegisterEndpointNotificationCallback(this);
+            }
+            ReplaceCapture();
         }
+    }
 
+    /// <summary>Rebinds loopback after endpoint invalidation. Only lifecycle work holds this lock;
+    /// capture callbacks never take it because StopRecording waits for the capture thread.</summary>
+    private void ReplaceCapture()
+    {
+        ReleaseCapture();
+        _sampleCount = 0;
+        Array.Clear(_sampleBuffer);
+        Array.Clear(_fftBuffer);
+        SpectrumChanged?.Invoke(this, new float[FrequencyBands.Length]);
         try
         {
-            _capture = new WasapiLoopbackCapture();
+            _capture = _createCapture();
             _capture.DataAvailable += OnDataAvailable;
+            _capture.RecordingStopped += OnRecordingStopped;
             _capture.StartRecording();
         }
         catch
         {
-            _capture?.Dispose();
-            _capture = null;
+            // An endpoint can temporarily disappear while a monitor powers down.
+            // Keep notifications registered so its return can restart capture.
+            ReleaseCapture();
         }
     }
+
+    private void ReleaseCapture()
+    {
+        var capture = _capture;
+        _capture = null;
+        if (capture is null) return;
+        capture.DataAvailable -= OnDataAvailable;
+        capture.RecordingStopped -= OnRecordingStopped;
+        try { capture.StopRecording(); }
+        catch { /* An invalidated endpoint may already have stopped. */ }
+        finally { capture.Dispose(); }
+    }
+
+    /// <summary>Moves COM and capture callbacks onto a worker before stopping or disposing
+    /// WASAPI, avoiding capture-thread self-joins and blocking Windows notification delivery.</summary>
+    internal Task QueueRecovery(IWaveIn? stoppedCapture = null)
+    {
+        return Task.Run(() =>
+        {
+            lock (_lifecycleLock)
+            {
+                if (_disposed || !_started) return;
+                if (stoppedCapture is not null && !ReferenceEquals(stoppedCapture, _capture)) return;
+                ReplaceCapture();
+            }
+        });
+    }
+
+    private void OnRecordingStopped(object? sender, StoppedEventArgs args)
+    {
+        if (sender is IWaveIn capture) _ = QueueRecovery(capture);
+    }
+
+    public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+    {
+        if (flow == DataFlow.Render && role == Role.Multimedia) _ = QueueRecovery();
+    }
+
+    public void OnDeviceStateChanged(string deviceId, DeviceState newState) => _ = QueueRecovery();
+    public void OnDeviceAdded(string deviceId) => _ = QueueRecovery();
+    public void OnDeviceRemoved(string deviceId) => _ = QueueRecovery();
+    public void OnPropertyValueChanged(string deviceId, PropertyKey key) { }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs args)
     {
         var capture = _capture;
-        if (capture is null || args.BytesRecorded == 0)
+        if (capture is null || !ReferenceEquals(sender, capture) || args.BytesRecorded == 0)
         {
             return;
         }
@@ -150,14 +227,17 @@ public sealed class SystemAudioLevelService : IDisposable
 
     public void Dispose()
     {
-        if (_capture is null)
+        lock (_lifecycleLock)
         {
-            return;
+            if (_disposed) return;
+            _disposed = true;
+            if (_deviceEnumerator is not null)
+            {
+                _deviceEnumerator.UnregisterEndpointNotificationCallback(this);
+                _deviceEnumerator.Dispose();
+                _deviceEnumerator = null;
+            }
+            ReleaseCapture();
         }
-
-        _capture.DataAvailable -= OnDataAvailable;
-        _capture.StopRecording();
-        _capture.Dispose();
-        _capture = null;
     }
 }

@@ -8,6 +8,7 @@ public sealed class MediaSessionService
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private GlobalSystemMediaTransportControlsSession? _session;
     private int _refreshVersion;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     public event EventHandler<MediaSnapshot?>? SnapshotChanged;
 
@@ -42,19 +43,20 @@ public sealed class MediaSessionService
 
     public async Task TogglePlayPauseAsync()
     {
-        if (_session is null)
+        var session = _session;
+        if (session is null)
         {
             return;
         }
 
-        var playback = _session.GetPlaybackInfo();
+        var playback = session.GetPlaybackInfo();
         if (playback?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
         {
-            await _session.TryPauseAsync();
+            await session.TryPauseAsync();
         }
         else
         {
-            await _session.TryPlayAsync();
+            await session.TryPlayAsync();
         }
 
         await RefreshAsync();
@@ -74,30 +76,54 @@ public sealed class MediaSessionService
         await RefreshAsync();
     }
 
+    /// <summary>Serializes session subscriptions across provider callbacks. Invalidate older
+    /// reads before waiting so a slow provider cannot publish over a newer session change.</summary>
     private async Task RefreshAsync()
     {
         var version = Interlocked.Increment(ref _refreshVersion);
+        await _refreshGate.WaitAsync();
+        try
+        {
+            if (version != Volatile.Read(ref _refreshVersion)) return;
+            await RefreshSessionAsync(version);
+        }
+        catch (Exception)
+        {
+            // A provider can disappear during discovery or event registration too,
+            // before the asynchronous media-property read has even started.
+            if (version == Volatile.Read(ref _refreshVersion))
+                SnapshotChanged?.Invoke(this, null);
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    private async Task RefreshSessionAsync(int version)
+    {
         if (_manager is null)
         {
             return;
         }
 
-        if (_session is not null)
+        var previousSession = _session;
+        if (previousSession is not null)
         {
-            _session.MediaPropertiesChanged -= OnSessionChanged;
-            _session.PlaybackInfoChanged -= OnSessionChanged;
+            previousSession.MediaPropertiesChanged -= OnSessionChanged;
+            previousSession.PlaybackInfoChanged -= OnSessionChanged;
         }
 
-        _session = _manager.GetCurrentSession();
-        if (_session is null)
+        var session = _manager.GetCurrentSession();
+        _session = session;
+        if (session is null)
         {
             SnapshotChanged?.Invoke(this, null);
             return;
         }
 
-        _session.MediaPropertiesChanged += OnSessionChanged;
-        _session.PlaybackInfoChanged += OnSessionChanged;
-        var session = _session;
+        session.MediaPropertiesChanged += OnSessionChanged;
+        session.PlaybackInfoChanged += OnSessionChanged;
 
         try
         {

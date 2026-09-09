@@ -2,6 +2,9 @@ using System.Reflection;
 using NAudio.Wave;
 using WindowsDynamicIsland.Services;
 
+if (args.Contains("--recovery"))
+    return await AudioRecoveryTests.RunAsync();
+
 // Run without arguments for deterministic regressions; --live samples one second
 // of spectrum events from the current default output without saving audio.
 if (args.Contains("--codex"))
