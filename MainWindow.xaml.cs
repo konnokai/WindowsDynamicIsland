@@ -42,6 +42,11 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherQueueTimer _mediaHoverTimer;
     private bool _pointerInside;
     private MediaSnapshot? _lastMediaSnapshot;
+    private bool _mediaExpandedBeforeNotification;
+    private bool _temporarilyHidden;
+    private bool _fullscreenHidden;
+    private bool _isSuppressed;
+    private readonly FullscreenAvoidanceService _avoidanceService;
 
     public MainWindow()
     {
@@ -67,11 +72,21 @@ public sealed partial class MainWindow : Window
         var windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
         ConfigureWindow();
+        // WinUI can restore WS_EX_WINDOWEDGE when activating the HWND.
+        Activated += (_, _) => WindowChromeService.HideSystemBorder(_windowHandle);
 
         _mediaService = new MediaSessionService();
         _powerService = new PowerService();
         _trayIconService = new TrayIconService(this, _windowHandle);
         _trayIconService.Initialize();
+        _trayIconService.ToggleVisibilityRequested += (_, _) => SetTemporarilyHidden(!_temporarilyHidden);
+        _trayIconService.RestoreRequested += (_, _) => SetTemporarilyHidden(false);
+        _avoidanceService = new FullscreenAvoidanceService(_windowHandle);
+        _avoidanceService.SuppressionChanged += (_, hidden) => _dispatcherQueue.TryEnqueue(() =>
+        {
+            _fullscreenHidden = hidden;
+            UpdateSuppression();
+        });
         _openCodeService = new OpenCodeNotificationService();
         _openCodeService.NotificationRaised += OnAgentNotification;
         _openCodeService.QuestionResolved += OnQuestionResolved;
@@ -111,6 +126,9 @@ public sealed partial class MainWindow : Window
         presenter.IsAlwaysOnTop = true;
         presenter.SetBorderAndTitleBar(false, false);
         _appWindow.SetPresenter(presenter);
+        _appWindow.IsShownInSwitchers = false;
+        _appWindow.SetIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
+        WindowChromeService.HideSystemBorder(_windowHandle);
         MoveIsland(244, 80, false);
     }
 
@@ -121,6 +139,7 @@ public sealed partial class MainWindow : Window
         _systemAudioService.Start();
         _openCodeService.Start();
         _codexService.Start();
+        _avoidanceService.Start();
     }
 
     private void ViewModelOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
@@ -199,7 +218,7 @@ public sealed partial class MainWindow : Window
     private void RestartMediaCollapseTimer()
     {
         _mediaCollapseTimer.Stop();
-        if (!_pointerInside && !_openCodeNotificationVisible && _viewModel.HasMedia)
+        if (!_isSuppressed && !_pointerInside && !_openCodeNotificationVisible && _viewModel.HasMedia)
             _mediaCollapseTimer.Start();
     }
 
@@ -209,6 +228,17 @@ public sealed partial class MainWindow : Window
         _mediaCollapseTimer.Stop();
         if (!_openCodeNotificationVisible && _viewModel.HasMedia && !_viewModel.IsExpanded)
             _mediaHoverTimer.Start();
+    }
+
+    private void OnIslandPointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        if (_isSuppressed || _openCodeNotificationVisible || !_viewModel.HasMedia ||
+            _viewModel.IsExpanded || !args.GetCurrentPoint(IslandRoot).Properties.IsLeftButtonPressed)
+            return;
+
+        _mediaHoverTimer.Stop();
+        _viewModel.IsExpanded = true;
+        args.Handled = true;
     }
 
     private void OnMediaCollapseTick(DispatcherQueueTimer sender, object args)
@@ -260,9 +290,13 @@ public sealed partial class MainWindow : Window
 
     private void ShowAgentNotification()
     {
+        var keepDismissDeadline = _openCodeDismissTimer.IsRunning &&
+            _viewModel.AgentNotification?.RequiresAttention != true;
+        if (!_openCodeNotificationVisible)
+            _mediaExpandedBeforeNotification = _viewModel.IsExpanded;
         _mediaCollapseTimer.Stop();
         _mediaHoverTimer.Stop();
-        _openCodeDismissTimer.Stop();
+        if (!keepDismissDeadline) _openCodeDismissTimer.Stop();
         _openCodeNotificationVisible = true;
         var isQuestion = _viewModel.HasAgentQuestion;
         CollapsedPanel.Visibility = Visibility.Collapsed;
@@ -274,7 +308,7 @@ public sealed partial class MainWindow : Window
         UpdateVisualizer();
         ResizeToAgentNotification();
 
-        if (_viewModel.AgentNotification?.RequiresAttention != true)
+        if (!keepDismissDeadline && !_isSuppressed && _viewModel.AgentNotification?.RequiresAttention != true)
         {
             _openCodeDismissTimer.Start();
         }
@@ -307,13 +341,48 @@ public sealed partial class MainWindow : Window
         _openCodeNotificationVisible = false;
         _viewModel.UpdateAgentNotification(null);
 
-        _viewModel.IsExpanded = _viewModel.HasMedia;
+        _viewModel.IsExpanded = _viewModel.HasMedia && _mediaExpandedBeforeNotification;
         ApplyMediaLayout();
         RestartMediaCollapseTimer();
         UpdateVisualizer();
     }
 
     private void OnDismissNotificationClick(object sender, RoutedEventArgs args) => HideAgentNotification();
+
+    private void SetTemporarilyHidden(bool hidden)
+    {
+        _temporarilyHidden = hidden;
+        _trayIconService.IsTemporarilyHidden = hidden;
+        UpdateSuppression();
+    }
+
+    /// <summary>Hides the HWND without losing pending questions or the media layout; restoration never takes focus.</summary>
+    private void UpdateSuppression()
+    {
+        var suppressed = _temporarilyHidden || _fullscreenHidden;
+        if (_isSuppressed == suppressed) return;
+        _isSuppressed = suppressed;
+        if (suppressed)
+        {
+            _pointerInside = false;
+            _mediaHoverTimer.Stop();
+            _mediaCollapseTimer.Stop();
+            _openCodeDismissTimer.Stop();
+            _islandAnimationTimer.Stop();
+            _appWindow.Hide();
+        }
+        else
+        {
+            if (_openCodeNotificationVisible) ShowAgentNotification();
+            else
+            {
+                ApplyMediaLayout();
+                if (_viewModel.IsExpanded) RestartMediaCollapseTimer();
+            }
+            _appWindow.Show(false);
+        }
+        UpdateVisualizer();
+    }
 
     private async void OnQuestionOptionClick(object sender, RoutedEventArgs args)
     {
@@ -429,7 +498,7 @@ public sealed partial class MainWindow : Window
     private void UpdateVisualizer()
     {
         AgentIconSurface.Visibility = Visibility.Visible;
-        var mediaActive = _viewModel.HasMedia && !_openCodeNotificationVisible;
+        var mediaActive = _viewModel.HasMedia && !_openCodeNotificationVisible && !_isSuppressed;
         MediaVisualizer.Visibility = mediaActive ? Visibility.Visible : Visibility.Collapsed;
         CollapsedMediaVisualizer.Visibility = mediaActive ? Visibility.Visible : Visibility.Collapsed;
         if (mediaActive)
@@ -450,6 +519,7 @@ public sealed partial class MainWindow : Window
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
+        _avoidanceService.Dispose();
         _viewModel.Dispose();
         _openCodeService.NotificationRaised -= OnAgentNotification;
         _openCodeService.QuestionResolved -= OnQuestionResolved;

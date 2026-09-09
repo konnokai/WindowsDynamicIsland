@@ -6,7 +6,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <Grid x:Name="IslandRoot" Background="Transparent" Loaded="OnWindowLoaded"
-          PointerEntered="OnIslandPointerEntered" PointerExited="OnIslandPointerExited">
+          PointerEntered="OnIslandPointerEntered" PointerExited="OnIslandPointerExited"
+          PointerPressed="OnIslandPointerPressed">
         <Border
             x:Name="IslandSurface"
             Background="{StaticResource IslandBackgroundBrush}"
@@ -115,7 +116,6 @@
                         </ItemsControl>
                     </Grid>
                 </Grid>
-
             </Grid>
         </Border>
     </Grid>
