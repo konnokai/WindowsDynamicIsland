@@ -35,7 +35,6 @@
 - 插件載入、插件沙箱、插件市場或遠端同步。
 - 完整的 OpenCode/Codex 插件協定；目前提供 OpenCode/OpenChamber SSE 與 Codex 本機 hooks adapter。
 - 系統音量事件與自製音量提示；依目前決策先排除，不作為首版重點。
-- 全螢幕遊戲覆蓋策略。
 - 多螢幕獨立浮島與複雜工作區同步。
 
 ## 架構
@@ -115,7 +114,10 @@ Windows API -> Service -> ViewModel -> WinUI 3 View
 - 目前專案為 unpackaged WinUI 3，目標 `net8.0-windows10.0.19041.0`，x64。
 - 目前沒有自行維護插件介面；媒體與電源服務分離，避免為尚未存在的外部通知協定增加抽象層。
 - 尚未做 Windows 10 22H2 實機驗證；目前只完成本機 Windows 環境的建置與啟動 smoke test。
-- 系統匣目前提供最小退出與重新啟用視窗入口，尚未加入設定或暫時隱藏選單。
+- 系統匣提供暫時隱藏、恢復與退出；暫時隱藏持續到手動恢復。左鍵恢復不搶焦點，全螢幕避讓仍優先。
+- 同螢幕前景視窗的 client area 覆蓋完整螢幕時自動隱藏，離開全螢幕後恢復；使用 WinEvent 監聽前景與位置變更，不輪詢。
+- 有 request ID 的待回答問題優先於一般注意事項，同工作階段的背景狀態不會清除問題。短暫提示結束後恢復音樂原本的展開或收合狀態；提示更新不延長既有倒數。
+- WASAPI 在預設輸出裝置變更、裝置出現/移除或擷取停止時重建 loopback；舊擷取先停止，再清除頻譜緩衝，關閉後不接受延遲重連。
 - 系統音量事件曾以 Core Audio COM interop 嘗試，但因啟動穩定性與首版優先級不符已移除；不要在後續 session 自動恢復。
 - 視窗收回/下拉使用 220ms easing 轉場，同步插值尺寸與位置；尚未加入更複雜的通知排程器。
 - voice-style visualizer 使用 NAudio WASAPI loopback 擷取預設系統輸出混音，計算五段 FFT 頻譜，不儲存或傳送音訊；OpenCode `session.status=busy` 與媒體播放會觸發顯示。
