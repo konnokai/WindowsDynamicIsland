@@ -17,6 +17,14 @@ namespace WindowsDynamicIsland;
 public sealed partial class MainWindow : Window
 {
     private readonly AppWindow _appWindow;
+    private readonly DisplayAreaWatcher _displayAreaWatcher;
+    private bool _applyingIslandBounds;
+    private bool _placementQueued;
+    private bool _windowClosed;
+    private bool _islandShown;
+    private SizeInt32 _requestedIslandSize;
+    private PointInt32 _appliedIslandPosition;
+    private SizeInt32 _appliedIslandSize;
     private readonly IslandViewModel _viewModel;
     private readonly MediaSessionService _mediaService;
     private readonly PowerService _powerService;
@@ -72,6 +80,12 @@ public sealed partial class MainWindow : Window
         var windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
         ConfigureWindow();
+        _appWindow.Changed += OnAppWindowChanged;
+        _displayAreaWatcher = DisplayArea.CreateWatcher();
+        _displayAreaWatcher.Added += (_, _) => QueuePlacementRestore();
+        _displayAreaWatcher.Removed += (_, _) => QueuePlacementRestore();
+        _displayAreaWatcher.Updated += (_, _) => QueuePlacementRestore();
+        _displayAreaWatcher.Start();
         // WinUI can restore WS_EX_WINDOWEDGE when activating the HWND.
         Activated += (_, _) => WindowChromeService.HideSystemBorder(_windowHandle);
 
@@ -406,6 +420,8 @@ public sealed partial class MainWindow : Window
 
     private void MoveIsland(int width, int height, bool show, bool animate = true)
     {
+        _requestedIslandSize = new SizeInt32(width, height);
+        _islandShown = show;
         var workArea = GetWorkArea();
         var x = workArea.X + Math.Max(0, (workArea.Width - width) / 2);
         var y = show ? workArea.Y + 12 : workArea.Y - height + 12;
@@ -413,8 +429,8 @@ public sealed partial class MainWindow : Window
         var targetSize = new SizeInt32(width, height);
         if (!animate)
         {
-            _appWindow.Resize(targetSize);
-            _appWindow.Move(targetPosition);
+            _islandAnimationTimer.Stop();
+            ApplyIslandBounds(targetPosition, targetSize);
             return;
         }
 
@@ -438,11 +454,57 @@ public sealed partial class MainWindow : Window
             Interpolate(_animationStartSize.Width, _animationTargetSize.Width, eased),
             Interpolate(_animationStartSize.Height, _animationTargetSize.Height, eased));
 
-        _appWindow.Resize(size);
-        _appWindow.Move(position);
+        ApplyIslandBounds(position, size);
         if (progress >= 1d)
         {
             _islandAnimationTimer.Stop();
+        }
+    }
+
+    /// <summary>Ignores our own moves while repairing Windows-initiated window relocation.</summary>
+    private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        var position = sender.Position;
+        var size = sender.Size;
+        // Also ignore delayed events whose bounds still match our latest animation frame.
+        if (!_applyingIslandBounds && (args.DidPositionChange || args.DidSizeChange) &&
+            (position.X != _appliedIslandPosition.X || position.Y != _appliedIslandPosition.Y ||
+             size.Width != _appliedIslandSize.Width || size.Height != _appliedIslandSize.Height))
+            QueuePlacementRestore();
+    }
+
+    /// <summary>Reanchors the current layout after display changes without changing visibility or notification state.</summary>
+    private void QueuePlacementRestore()
+    {
+        if (_windowClosed || _placementQueued) return;
+        _placementQueued = true;
+        // Defer until the native change has completed. A later Windows relocation
+        // raises Changed again, so recovery does not depend on a guessed delay.
+        if (!_dispatcherQueue.TryEnqueue(() =>
+        {
+            _placementQueued = false;
+            if (_windowClosed) return;
+            MoveIsland(_requestedIslandSize.Width, _requestedIslandSize.Height, _islandShown, false);
+        }))
+            _placementQueued = false;
+    }
+
+    /// <summary>Applies bounds under a guard so synchronous change events cannot restart placement.</summary>
+    private void ApplyIslandBounds(PointInt32 position, SizeInt32 size)
+    {
+        _applyingIslandBounds = true;
+        _appliedIslandPosition = position;
+        _appliedIslandSize = size;
+        try
+        {
+            if (_appWindow.Size.Width != size.Width || _appWindow.Size.Height != size.Height)
+                _appWindow.Resize(size);
+            if (_appWindow.Position.X != position.X || _appWindow.Position.Y != position.Y)
+                _appWindow.Move(position);
+        }
+        finally
+        {
+            _applyingIslandBounds = false;
         }
     }
 
@@ -518,6 +580,9 @@ public sealed partial class MainWindow : Window
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        _windowClosed = true;
+        _displayAreaWatcher.Stop();
+        _appWindow.Changed -= OnAppWindowChanged;
         _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
         _avoidanceService.Dispose();
         _viewModel.Dispose();
