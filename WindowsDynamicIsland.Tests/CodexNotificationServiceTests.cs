@@ -39,6 +39,17 @@ internal static class CodexNotificationServiceTests
         queue.Update(Parse("Stop"));
         Check(queue.Current?.RequiresAttention == false, "same session can clear its approval");
 
+        queue = new AgentNotificationQueue();
+        queue.Update(permission);
+        queue.Update(openCodeQuestion);
+        Check(queue.Current == openCodeQuestion, "answerable question precedes informational approval");
+        queue.Update(openCodeQuestion with { Title = "Working", RequiresAttention = false, RequestId = null, Options = null });
+        Check(queue.Current == openCodeQuestion, "same-session background status preserves unanswered question");
+        queue.Update(openCodeQuestion with { RequestId = "q2" });
+        Check(queue.Current == openCodeQuestion, "later questions do not preempt the current question");
+        queue.ResolveQuestion("OpenCode", "q");
+        Check(queue.Current?.RequestId == "q2", "resolving current question exposes next pending question");
+
         // Use an isolated pipe and config directory. No real Codex settings or tasks are changed.
         var pipeName = "WindowsDynamicIsland.Tests." + Guid.NewGuid().ToString("N");
         using var service = new CodexNotificationService(pipeName);
