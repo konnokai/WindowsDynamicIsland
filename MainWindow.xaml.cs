@@ -574,6 +574,10 @@ public sealed partial class MainWindow : Window
 
     private RectInt32 GetWorkArea()
     {
+        // 螢幕關閉時 Windows 會把視窗搬到其他螢幕；若照視窗所在螢幕定位，
+        // 主螢幕回來後浮島會留在錯的螢幕，所以固定以主螢幕為準。
+        var primary = DisplayArea.Primary;
+        if (primary is not null) return primary.WorkArea;
         var windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
         return DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary).WorkArea;
     }
