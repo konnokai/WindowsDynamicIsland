@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private readonly TrayIconService _trayIconService;
     private readonly OpenCodeNotificationService _openCodeService;
     private readonly CodexNotificationService _codexService;
+    private readonly ClaudeNotificationService _claudeService;
     private readonly AgentNotificationQueue _notifications = new();
     private readonly SystemAudioLevelService _systemAudioService;
     private readonly nint _windowHandle;
@@ -106,6 +107,8 @@ public sealed partial class MainWindow : Window
         _openCodeService.QuestionResolved += OnQuestionResolved;
         _codexService = new CodexNotificationService();
         _codexService.NotificationRaised += OnAgentNotification;
+        _claudeService = new ClaudeNotificationService();
+        _claudeService.NotificationRaised += OnAgentNotification;
         _systemAudioService = new SystemAudioLevelService();
         _systemAudioService.SpectrumChanged += OnSystemAudioSpectrumChanged;
         _openCodeDismissTimer = _dispatcherQueue.CreateTimer();
@@ -153,6 +156,7 @@ public sealed partial class MainWindow : Window
         _systemAudioService.Start();
         _openCodeService.Start();
         _codexService.Start();
+        _claudeService.Start();
         _avoidanceService.Start();
     }
 
@@ -595,6 +599,8 @@ public sealed partial class MainWindow : Window
         _openCodeService.Dispose();
         _codexService.NotificationRaised -= OnAgentNotification;
         _codexService.Dispose();
+        _claudeService.NotificationRaised -= OnAgentNotification;
+        _claudeService.Dispose();
         _openCodeDismissTimer.Stop();
         _islandAnimationTimer.Stop();
         _visualizerTimer.Stop();

@@ -10,6 +10,9 @@ if (args.Contains("--recovery"))
 if (args.Contains("--codex"))
     return await CodexNotificationServiceTests.RunAsync();
 
+if (args.Contains("--claude"))
+    return await ClaudeNotificationServiceTests.RunAsync();
+
 if (args.Contains("--media"))
     return MediaProgressTests.Run();
 

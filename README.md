@@ -1,6 +1,6 @@
 # WindowsDynamicIsland
 
-Windows 桌面浮島，可顯示媒體、電量及 OpenCode / Codex 通知。
+Windows 桌面浮島，可顯示媒體、電量及 OpenCode / Codex / Claude 通知。
 
 ## 建置
 
@@ -41,6 +41,37 @@ powershell.exe -NoProfile -File .\Integrations\Codex\Install-IslandHooks.ps1 -Un
 
 ```powershell
 dotnet run --project WindowsDynamicIsland.Tests -c Release -- --codex
+```
+
+## Claude 通知
+
+支援 Claude Code CLI 與 Claude Desktop 的 Code 分頁（兩者共用同一份 hooks 設定）。Claude Desktop 一般聊天沒有 hooks，不會通知。
+
+在專案目錄執行一次安裝：
+
+```powershell
+powershell.exe -NoProfile -File .\Integrations\Claude\Install-IslandHooks.ps1
+```
+
+安裝程式寫入 `CLAUDE_CONFIG_DIR\settings.json`，未設定時寫入 `%USERPROFILE%\.claude\settings.json`。它會保留其他設定與既有 hooks，更新前備份成 `settings.json.<guid>.bak`。重跑不會重複加入。搬動專案後請重新執行安裝。裝好後開新的 Claude 工作階段才會生效。
+
+- 送出提示與工具執行結束時，顯示工作中提示。
+- 權限請求、`AskUserQuestion` 問題、MCP 輸入請求時，顯示需要回應的提示。請回到 Claude 核准或回答。
+- `Stop` 顯示「回覆已就緒」，不代表整個工作成功。`StopFailure` 顯示錯誤類型（例如 `rate_limit`），並保留到你關閉。
+- 閒置等待輸入、工作階段結束時，顯示對應提示。
+
+hook 以 `async` 背景執行，不會拖慢 Claude，也不輸出任何內容到對話。只透過目前 Windows 使用者的本機 named pipe 傳送事件名稱、工作階段 ID、工具名稱、通知類型與錯誤類型；不傳送提示詞、工具參數、通知訊息或對話記錄路徑，也不代替使用者核准。浮島未執行時直接略過。
+
+移除整合：
+
+```powershell
+powershell.exe -NoProfile -File .\Integrations\Claude\Install-IslandHooks.ps1 -Uninstall
+```
+
+本機回歸測試（只用暫存目錄，不動真實設定）：
+
+```powershell
+dotnet run --project WindowsDynamicIsland.Tests -c Release -- --claude
 ```
 
 ## 圖示來源與授權
